@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Page</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+<script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <h1>Admin Page</h1>
+    <label for="toggle">Enable Registration</label>
+    <input type="checkbox" id="toggle" name="toggle">
+    
+    <form id="add-student-form">
+        <input type="text" id="student-id" placeholder="Student ID" required />
+        <button type="submit">Add Student</button>
+    </form>
+    
+    <form id="remove-student-form">
+        <input type="text" id="remove-student-id" placeholder="Student ID to remove" required />
+        <button type="submit">Remove Student</button>
+    </form>
+
+    <form id="remove-all-students-form">
+        <button type="submit">Remove All Students</button>
+    </form>
+
+    <hr />
+
+    <h3>Import Official List (mylist) from Excel</h3>
+    <input type="file" id="import-excel-file" accept=".xlsx,.xls" />
+    <button id="import-excel">Import Excel</button>
+
+    <button id="export-excel">Export Excel</button>
+    <div id="message"></div>
+    
+    <table id="students-table">
+        <thead>
+            <tr>
+                <th>N°</th>
+                <th>Student ID</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Rows will be added here dynamically -->
+        </tbody>
+    </table>
+    <script>
+        document.getElementById('toggle').addEventListener('change', function(event) {
+          fetch('/toggle', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ enable: event.target.checked }),
+          })
+          .then(response => response.text()) 
+         .then(message => {
+          document.getElementById('message').textContent = message;
+        });
+        });
+        fetch('/students')
+            .then(response => response.json())
+            .then(data => {
+                const tableBody = document.getElementById('students-table').getElementsByTagName('tbody')[0];
+                tableBody.innerHTML = '';
+                data.forEach((student, idx) => {
+                   
+                    let row = tableBody.insertRow();
+                    let cell1 = row.insertCell(0);
+                    let cell2 = row.insertCell(1);
+                    // Visual numbering (1..N) independent from DB primary key naming
+                    cell1.textContent = String(idx + 1);
+
+                    // Column name in DB is usually `studentId` (lowercase), but keep fallbacks
+                    const sid = student.studentId ?? student.StudentId ?? student.studentID ?? student.StudentIdL ?? '';
+                    cell2.textContent = String(sid);
+                    
+                });
+            })
+            .catch(error => console.error('Error:', error));
+            fetch('/isRegistrationEnabled')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('toggle').checked = data.enabled;
+        });
+    document.getElementById('add-student-form').addEventListener('submit', function(event) {
+    event.preventDefault();
+    const studentId = document.getElementById('student-id').value;
+
+    fetch('/addStudent', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ studentId }),
+    })
+    .then(response => response.text()) 
+    .then(message => {
+        document.getElementById('message').textContent = message;
+    });
+});
+
+document.getElementById('remove-student-form').addEventListener('submit', function(event) {
+    event.preventDefault();
+    const studentId = document.getElementById('remove-student-id').value;
+
+    fetch('/removeStudent', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ studentId }),
+    })
+    .then(response => response.text()) // Convert the response data to text
+    .then(message => {
+        document.getElementById('message').textContent = message;
+    });
+});
+    document.getElementById('remove-all-students-form').addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        const confirmation = window.confirm("Are you sure you want to remove all students?");
+
+        if (confirmation) {
+            fetch('/removeAllStudents', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.text())
+            .then(message => {
+                document.getElementById('message').textContent = message;
+            });
+        }
+});
+
+document.getElementById('export-excel').addEventListener('click', function() {
+    // Get all studentId from the table
+    let studentIds = Array.from(document.getElementById('students-table').getElementsByTagName('tbody')[0].rows)
+        .map(row => [row.cells[1].textContent]); // Assuming studentId is in the second column
+
+    // Create a workbook
+    let wb = XLSX.utils.book_new();
+
+    // Convert the array to a worksheet
+    let ws = XLSX.utils.aoa_to_sheet(studentIds);
+
+    // Add the worksheet to the workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Student IDs");
+
+    // Write the workbook to a file
+    XLSX.writeFile(wb, "studentIds.xlsx");
+});
+
+document.getElementById('import-excel').addEventListener('click', async function() {
+    const fileInput = document.getElementById('import-excel-file');
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) {
+        document.getElementById('message').textContent = 'Please choose an Excel file (all.xlsx) first.';
+        return;
+    }
+
+    try {
+        const data = await file.arrayBuffer();
+        const wb = XLSX.read(data, { type: 'array' });
+        const firstSheetName = wb.SheetNames[0];
+        const ws = wb.Sheets[firstSheetName];
+
+        const jsonRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+        const arrayRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+
+        let rowsToSend = [];
+
+        if (Array.isArray(jsonRows) && jsonRows.length > 0 && typeof jsonRows[0] === 'object' && !Array.isArray(jsonRows[0])) {
+            rowsToSend = jsonRows.map((r) => {
+                const keys = Object.keys(r);
+                const get = (candidates) => {
+                    for (const c of candidates) {
+                        const foundKey = keys.find((k) => k.toLowerCase().trim() === c.toLowerCase());
+                        if (foundKey) return r[foundKey];
+                    }
+                    return '';
+                };
+
+                const StudentIdL = get(['StudentIdL', 'studentId', 'studentid', 'id', 'matricule', 'matricul', 'code']);
+                const name = get(['name', 'prenom', 'first', 'firstname', 'prénom']);
+                const surname = get(['surname', 'nom', 'last', 'lastname', 'familyname']);
+                return { name, surname, StudentIdL };
+            });
+        } else if (Array.isArray(arrayRows) && arrayRows.length > 0) {
+            rowsToSend = arrayRows
+                .map((r) => ({ StudentIdL: (r && r[0]) ? String(r[0]) : '', name: '', surname: '' }))
+                .filter((r) => r.StudentIdL.trim().length > 0);
+        }
+
+        if (!rowsToSend || rowsToSend.length === 0) {
+            document.getElementById('message').textContent = 'No rows found in the Excel file.';
+            return;
+        }
+
+        document.getElementById('message').textContent = `Importing ${rowsToSend.length} rows...`;
+
+        const resp = await fetch('/admin/importMyList', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows: rowsToSend })
+        });
+
+        const result = await resp.json().catch(() => null);
+        if (!resp.ok) {
+            document.getElementById('message').textContent = (result && result.error) ? result.error : 'Import failed.';
+            return;
+        }
+
+        document.getElementById('message').textContent = `Import done. Inserted: ${result.inserted} (valid: ${result.valid}).`;
+    } catch (e) {
+        console.error(e);
+        document.getElementById('message').textContent = 'Import failed (invalid Excel or server error).';
+    }
+});
+
+    </script>
+</body>
+</html>

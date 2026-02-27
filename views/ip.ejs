@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="/node_modules/bootstrap/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            
+            margin: 0;
+            font-family: 'Sakkal Majalla', sans-serif;
+            font-size: 20pt;
+            text-align: center;
+        }
+        img {
+            width: 800px;
+            height: 800px;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <h1>:بعد الدخول للشبكة المحلية قم بمسح هذا الرمز</h1>
+        <img src="<%= qr %>" alt="QR Code">
+    </div>
+    <script src="/node_modules/bootstrap/dist/js/bootstrap.min.js"></script>
+</body>
+</html>

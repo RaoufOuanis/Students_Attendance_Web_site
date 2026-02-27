@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تسجيل الحضور</title>
+  <style>
+    body{
+      
+      background-image: url('university.jpg');
+      background-size: cover;
+      background-repeat: no-repeat;
+      font-family: 'Sakkal Majalla', sans-serif;
+      text-align: center;
+      font-size: 17pt;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      height: 100vh;
+      background-color: lightblue;
+    }
+  
+    .content {
+      border: 2px solid black;
+      border-radius: 10px;
+      padding: 20px;
+      background-color: white;
+      font-size: 13pt;
+    }
+    button {
+      font-family: 'Sakkal Majalla', sans-serif;
+      font-size: 13pt;
+      margin-right: 30px;margin-top: 20px;
+      border-radius: 5px;
+    }
+    #studentId {
+      width: 200px;
+      height: 22px;
+    }
+    footer {
+      font-size: 13pt;
+      position: fixed;
+      bottom: 20px; 
+    }
+  </style>
+</head>
+<body>
+ 
+  <div class="content">
+    <h1>تسجيل الحضور</h1>
+    <p>الرجاء إدخال رقم الطالب الخاص بك:</p>
+      <form id="registration-form" method="post" action="/register" onsubmit="return confirmSubmit()">
+      <label for="studentId">الرقم:</label>
+      <input type="text" id="studentId" name="studentId" required>
+      <button type="submit">تأكيد</button>
+      </form>
+    <p id="message"></p>
+  </div>
+    <script>
+    document.getElementById('registration-form').addEventListener('submit', function(event) {
+      event.preventDefault();
+
+      var studentId = document.getElementById('studentId').value;
+      var confirmed = confirm("هل توافق على إدخال الرقم الموالي: " + studentId );
+
+      if (confirmed) {
+      fetch('/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'studentId=' + encodeURIComponent(studentId),
+      })
+      .then(response => response.text())
+      .then(data => {
+        document.getElementById('message').textContent = data;
+      });
+     }
+    });
+  </script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io.connect();
+  
+    socket.on('disableButton', function() {
+      const button = document.querySelector('button[type="submit"]');
+      button.disabled = true;
+      button.innerText = 'معذرة، إنتهى وقت التسجيل';
+    });
+  
+    socket.on('enableButton', function() {
+      const button = document.querySelector('button[type="submit"]');
+      button.disabled = false;
+      button.innerText = 'تأكيد';
+    });
+  </script>
+  <footer><a href="/admin">Admin Access</a> |
+    <a href="/ip">Local IP in QR code</a>
+    <br>
+    رؤوف ونيس ل.ع 2024
+    </footer>
+</body>
+</html>
